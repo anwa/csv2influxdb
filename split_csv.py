@@ -37,6 +37,8 @@ def extract_blutdruck_data(lines):
         if start_collecting:
             if line.strip() == "" or not line.split(";")[0].strip():
                 break
+            if "MAD =" in line or "Ø =" in line:
+                continue
             blutdruck_data.append(line.strip())
     return blutdruck_data
 
