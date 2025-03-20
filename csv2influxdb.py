@@ -3,10 +3,17 @@ import os
 import io
 import csv
 import re
+import logging
 from datetime import datetime
 
-# Define the output file name
+# Define the user name and output file name
+user_name = "andreas"
 influxdb_output_file = "influxdb-import.csv"
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 # Directory where the files are stored
 directory = "./"
@@ -30,7 +37,11 @@ def extract_date(filename):
 
 
 # Find the newest file
-newest_file = max(matching_files, key=extract_date)
+try:
+    newest_file = max(matching_files, key=extract_date)
+except ValueError:
+    logging.error("No files matching the pattern were found.")
+    sys.exit(1)
 
 # Path to the newest file
 input_file = os.path.join(directory, newest_file)
@@ -47,13 +58,13 @@ try:
     with open(input_file, "r", encoding="utf-8") as file:
         lines = file.readlines()
 except Exception as e:
-    print(f"Fehler beim Lesen der Datei '{input_file}': {e}")
-    sys.exit()
+    logging.error(f"Error reading file '{input_file}': {e}")
+    sys.exit(1)
 
 
 # Function to extract relevant data for weight
-def extract_gewicht_data(lines):
-    gewicht_data = []
+def extract_weight_data(lines):
+    weight_data = []
     start_collecting = False
     for line in lines:
         if "Gewicht" in line:
@@ -63,13 +74,13 @@ def extract_gewicht_data(lines):
             if line.strip() == "":
                 break
             if "Körperfett" in line or (line.strip() and line.split(";")[4].strip()):
-                gewicht_data.append(line.strip())
-    return gewicht_data
+                weight_data.append(line.strip())
+    return weight_data
 
 
 # Function to extract relevant data for blood pressure
-def extract_blutdruck_data(lines):
-    blutdruck_data = []
+def extract_blood_pressure_data(lines):
+    blood_pressure_data = []
     start_collecting = False
     for line in lines:
         if "Blutdruck" in line:
@@ -80,25 +91,25 @@ def extract_blutdruck_data(lines):
                 break
             if "MAD =" in line or "Ø =" in line:
                 continue
-            blutdruck_data.append(line.strip())
-    return blutdruck_data
+            blood_pressure_data.append(line.strip())
+    return blood_pressure_data
 
 
 # Extract data for weight and blood pressure
-gewicht_data = extract_gewicht_data(lines)
-blutdruck_data = extract_blutdruck_data(lines)
+weight_data = extract_weight_data(lines)
+blood_pressure_data = extract_blood_pressure_data(lines)
 
 # Convert the list of lines to a string
-gewicht_data_str = "\n".join(gewicht_data)
-blutdruck_data_str = "\n".join(blutdruck_data)
+weight_data_str = "\n".join(weight_data)
+blood_pressure_data_str = "\n".join(blood_pressure_data)
 
 # Use io.StringIO to create a file-like object from the string
-gewicht_data_io = io.StringIO(gewicht_data_str)
-blutdruck_data_io = io.StringIO(blutdruck_data_str)
+weight_data_io = io.StringIO(weight_data_str)
+blood_pressure_data_io = io.StringIO(blood_pressure_data_str)
 
 
 # Function to extract and convert relevant data for weight
-def process_gewicht_data(reader, outfile):
+def process_weight_data(reader, outfile):
     for row in reader:
         date = row["Datum"]
         time_of_day = row["Uhrzeit"]
@@ -111,19 +122,17 @@ def process_gewicht_data(reader, outfile):
         try:
             timestamp = datetime_to_unix(date, time_of_day)
         except ValueError as e:
-            print(
-                f"Fehler beim Konvertieren von Datum und Uhrzeit: {date} {time_of_day} - {e}"
-            )
+            logging.error(f"Error converting date and time: {date} {time_of_day} - {e}")
             continue
         influxdb_line = (
-            f"andreas,entity_id=weight,friendly_name=Gewicht "
+            f"{user_name},entity_id=weight,friendly_name=Gewicht "
             f"weight={weight},BMI={bmi},fat={fat},water={water},muscles={muscles},bones={bones} {timestamp}\n"
         )
         outfile.write(influxdb_line)
 
 
 # Function to extract and convert relevant data for blood pressure
-def process_blutdruck_data(reader, outfile):
+def process_blood_pressure_data(reader, outfile):
     for row in reader:
         date = row["Datum"]
         time_of_day = row["Uhrzeit"]
@@ -134,12 +143,10 @@ def process_blutdruck_data(reader, outfile):
         try:
             timestamp = datetime_to_unix(date, time_of_day)
         except ValueError as e:
-            print(
-                f"Fehler beim Konvertieren von Datum und Uhrzeit: {date} {time_of_day} - {e}"
-            )
+            logging.error(f"Error converting date and time: {date} {time_of_day} - {e}")
             continue
         influxdb_line = (
-            f"andreas,entity_id=blood_pressure,friendly_name=Blutdruck "
+            f"{user_name},entity_id=blood_pressure,friendly_name=Blutdruck "
             f"sys={sys},dia={dia},pulse={pulse},MAD={mad} {timestamp}\n"
         )
         outfile.write(influxdb_line)
@@ -147,10 +154,10 @@ def process_blutdruck_data(reader, outfile):
 
 # Create the InfluxDB output file and process the data
 with open(influxdb_output_file, "w", encoding="utf-8", newline="\n") as outfile:
-    reader = csv.DictReader(gewicht_data_io, delimiter=";")
-    process_gewicht_data(reader, outfile)
-    reader = csv.DictReader(blutdruck_data_io, delimiter=";")
-    process_blutdruck_data(reader, outfile)
+    reader = csv.DictReader(weight_data_io, delimiter=";")
+    process_weight_data(reader, outfile)
+    reader = csv.DictReader(blood_pressure_data_io, delimiter=";")
+    process_blood_pressure_data(reader, outfile)
 
 # Delete all files that match the pattern
 for file in matching_files:
