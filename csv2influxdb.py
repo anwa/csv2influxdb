@@ -5,24 +5,23 @@ import csv
 import re
 from datetime import datetime
 
-# Define the input and output file names
-# input_file = "HealthManager Pro Export.csv"
+# Define the output file name
 influxdb_output_file = "influxdb-import.csv"
 
-# Verzeichnis, in dem die Dateien gespeichert sind
+# Directory where the files are stored
 directory = "./"
 
-# Muster für den Dateinamen
+# Pattern for the filename
 pattern = r"HealthManager Pro Export - \d{2}\.\d{2}\.\d{4} - (\d{2}\.\d{2}\.\d{4})\.csv"
 
-# Liste aller Dateien im Verzeichnis
+# List all files in the directory
 files = os.listdir(directory)
 
-# Filtere die Dateien, die dem Muster entsprechen
+# Filter the files that match the pattern
 matching_files = [f for f in files if re.match(pattern, f)]
 
 
-# Funktion zum Extrahieren des Datums aus dem Dateinamen
+# Function to extract the date from the filename
 def extract_date(filename):
     match = re.search(pattern, filename)
     if match:
@@ -30,10 +29,10 @@ def extract_date(filename):
     return None
 
 
-# Finde die neueste Datei
+# Find the newest file
 newest_file = max(matching_files, key=extract_date)
 
-# Pfad zur neuesten Datei
+# Path to the newest file
 input_file = os.path.join(directory, newest_file)
 
 
@@ -52,7 +51,7 @@ except Exception as e:
     sys.exit()
 
 
-# Function to extract relevant data for Gewicht
+# Function to extract relevant data for weight
 def extract_gewicht_data(lines):
     gewicht_data = []
     start_collecting = False
@@ -68,7 +67,7 @@ def extract_gewicht_data(lines):
     return gewicht_data
 
 
-# Function to extract relevant data for Blutdruck
+# Function to extract relevant data for blood pressure
 def extract_blutdruck_data(lines):
     blutdruck_data = []
     start_collecting = False
@@ -85,7 +84,7 @@ def extract_blutdruck_data(lines):
     return blutdruck_data
 
 
-# Extract data for Gewicht and Blutdruck
+# Extract data for weight and blood pressure
 gewicht_data = extract_gewicht_data(lines)
 blutdruck_data = extract_blutdruck_data(lines)
 
@@ -98,7 +97,7 @@ gewicht_data_io = io.StringIO(gewicht_data_str)
 blutdruck_data_io = io.StringIO(blutdruck_data_str)
 
 
-# Function to extract and convert relevant data for Gewicht
+# Function to extract and convert relevant data for weight
 def process_gewicht_data(reader, outfile):
     for row in reader:
         date = row["Datum"]
@@ -123,7 +122,7 @@ def process_gewicht_data(reader, outfile):
         outfile.write(influxdb_line)
 
 
-# Function to extract and convert relevant data for Blutdruck
+# Function to extract and convert relevant data for blood pressure
 def process_blutdruck_data(reader, outfile):
     for row in reader:
         date = row["Datum"]
@@ -153,7 +152,7 @@ with open(influxdb_output_file, "w", encoding="utf-8", newline="\n") as outfile:
     reader = csv.DictReader(blutdruck_data_io, delimiter=";")
     process_blutdruck_data(reader, outfile)
 
-# Löschen aller Dateien, die dem Muster entsprechen
+# Delete all files that match the pattern
 for file in matching_files:
     os.remove(os.path.join(directory, file))
 
