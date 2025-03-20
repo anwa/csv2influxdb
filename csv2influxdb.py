@@ -1,10 +1,40 @@
-import csv
+import sys
+import os
 import io
+import csv
+import re
 from datetime import datetime
 
 # Define the input and output file names
-input_file = "HealthManager Pro Export.csv"
+# input_file = "HealthManager Pro Export.csv"
 influxdb_output_file = "influxdb-import.csv"
+
+# Verzeichnis, in dem die Dateien gespeichert sind
+directory = "./"
+
+# Muster für den Dateinamen
+pattern = r"HealthManager Pro Export - \d{2}\.\d{2}\.\d{4} - (\d{2}\.\d{2}\.\d{4})\.csv"
+
+# Liste aller Dateien im Verzeichnis
+files = os.listdir(directory)
+
+# Filtere die Dateien, die dem Muster entsprechen
+matching_files = [f for f in files if re.match(pattern, f)]
+
+
+# Funktion zum Extrahieren des Datums aus dem Dateinamen
+def extract_date(filename):
+    match = re.search(pattern, filename)
+    if match:
+        return datetime.strptime(match.group(1), "%d.%m.%Y")
+    return None
+
+
+# Finde die neueste Datei
+newest_file = max(matching_files, key=extract_date)
+
+# Pfad zur neuesten Datei
+input_file = os.path.join(directory, newest_file)
 
 
 # Function to convert date and time to Unix timestamp
@@ -14,8 +44,12 @@ def datetime_to_unix(date_str, time_str):
 
 
 # Read the content of the input file
-with open(input_file, "r", encoding="utf-8") as file:
-    lines = file.readlines()
+try:
+    with open(input_file, "r", encoding="utf-8") as file:
+        lines = file.readlines()
+except Exception as e:
+    print(f"Fehler beim Lesen der Datei '{input_file}': {e}")
+    sys.exit()
 
 
 # Function to extract relevant data for Gewicht
@@ -118,5 +152,9 @@ with open(influxdb_output_file, "w", encoding="utf-8", newline="\n") as outfile:
     process_gewicht_data(reader, outfile)
     reader = csv.DictReader(blutdruck_data_io, delimiter=";")
     process_blutdruck_data(reader, outfile)
+
+# Löschen aller Dateien, die dem Muster entsprechen
+for file in matching_files:
+    os.remove(os.path.join(directory, file))
 
 print("CSV file has been created and converted to InfluxDB format successfully.")
